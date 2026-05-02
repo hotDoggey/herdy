@@ -1,0 +1,23 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /sightings/{id} {
+      // Anyone can read active sightings — the heatmap is public
+      allow read: if true;
+
+      // Anonymous pin drop — validate required fields are present and timestamp is server-set
+      allow create: if request.resource.data.keys().hasAll([
+                        'locationId', 'position', 'createdAt',
+                        'deviceId', 'dateKey', 'confirmed', 'isOutOfBounds'
+                      ])
+                   && request.resource.data.createdAt == request.time
+                   && request.resource.data.locationId is string
+                   && request.resource.data.deviceId is string;
+
+      // No editing or deleting pins after submission
+      allow update, delete: if false;
+    }
+
+  }
+}
