@@ -1,0 +1,10 @@
+After npx expo run:ios --device installs the app, just run:
+
+use geojson.io for polygon jsons
+
+npm start
+
+debug in constants/debug.ts
+
+
+have partnerships with tour guides and car rentals on island to promote them and get some money from those deals.

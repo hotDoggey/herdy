@@ -13,7 +13,6 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// experimentalForceLongPolling avoids WebChannel transport errors in React Native.
 // Falls back to getFirestore() if Fast Refresh re-runs this module after init.
 let db: Firestore;
 try {

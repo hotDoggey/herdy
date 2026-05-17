@@ -11,7 +11,7 @@ service cloud.firestore {
                         'locationId', 'position', 'createdAt',
                         'deviceId', 'dateKey', 'confirmed', 'isOutOfBounds'
                       ])
-                   && request.resource.data.createdAt == request.time
+                   && request.resource.data.createdAt is timestamp
                    && request.resource.data.locationId is string
                    && request.resource.data.deviceId is string;
 

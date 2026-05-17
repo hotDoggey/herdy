@@ -1,4 +1,5 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,6 +14,12 @@ interface Props {
 
 export default function DrawerMenu({ visible, onClose, onBuyCoffee }: Props) {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+
+  const openSettings = () => {
+    onClose();
+    setTimeout(() => router.push('/settings'), 220);
+  };
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -56,7 +63,7 @@ export default function DrawerMenu({ visible, onClose, onBuyCoffee }: Props) {
             <Text style={styles.itemText}>Account</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.item}>
+          <TouchableOpacity style={styles.item} onPress={openSettings}>
             <Ionicons name="settings-outline" size={22} color="#333" />
             <Text style={styles.itemText}>Settings</Text>
           </TouchableOpacity>
