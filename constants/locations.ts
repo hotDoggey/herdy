@@ -20,6 +20,8 @@ export interface AppLocation {
   openingHours?: { open: string; close: string; lastEntry: string };
   dailyCap?: number;
   imageAsset: number; // local asset resolved by Metro bundler
+  pinIcon?: number;   // icon flown into the map when a pin is dropped
+  hidden?: boolean;   // exclude from UI (e.g. dev-only test locations)
 }
 
 export const LOCATIONS: AppLocation[] = [
@@ -64,38 +66,34 @@ export const LOCATIONS: AppLocation[] = [
     openingHours: { open: '08:00', close: '17:00', lastEntry: '15:00' },
     dailyCap: 3000,
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    imageAsset: require('../assets/select_location_fanal_forest_tree_with_cow_3.png'),
+    imageAsset: require('../assets/location_fanal_assets/select_location_fanal_forest_tree_with_cow_3.png'),
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    pinIcon: require('../assets/location_fanal_assets/cow_flyin_icon.png'),
   },
   {
     id: 'home-test',
     name: 'Home',
     description: 'Test location for development.',
+    hidden: true,
     status: 'active',
     animal: 'test',
     timezone: 'Europe/London',
-    center: { lat: 51.52267672170919, lng: -0.15894695005363246 },
+    center: { lat: 51.485, lng: -0.10 },
     perimeterPolygon: [
-      { lat: 51.53048486688223,  lng: -0.16849288969694953 },
-      { lat: 51.52563812991548,  lng: -0.17873089695081035 },
-      { lat: 51.51946100944468,  lng: -0.17886878257070293 },
-      { lat: 51.51615762204031,  lng: -0.16770004738447142 },
-      { lat: 51.51765919147081,  lng: -0.1541183138577651  },
-      { lat: 51.51618315973994,  lng: -0.13811388827676296 },
-      { lat: 51.52023728132204,  lng: -0.13349472002030893 },
-      { lat: 51.52532051111379,  lng: -0.1351148760510057  },
-      { lat: 51.52551353397371,  lng: -0.1448358122307809  },
-      { lat: 51.53619317373847,  lng: -0.146904307541746   },
-      { lat: 51.53795137626233,  lng: -0.153109160421792   },
-      { lat: 51.54247521299956,  lng: -0.161485706479624   },
-      { lat: 51.53966662403576,  lng: -0.16913835836609792 },
+      { lat: 51.25, lng: -0.55 },
+      { lat: 51.25, lng:  0.35 },
+      { lat: 51.72, lng:  0.35 },
+      { lat: 51.72, lng: -0.55 },
     ],
     offlineTileBounds: {
-      sw: [-0.185, 51.513],
-      ne: [-0.130, 51.546],
+      sw: [-0.55, 51.25],
+      ne: [ 0.35, 51.72],
     },
     mapZoom: { min: 12, max: 17 },
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    imageAsset: require('../assets/select_location_home4testing.jpeg'),
+    imageAsset: require('../assets/location_home_assets/select_location_home4testing.jpeg'),
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    pinIcon: require('../assets/location_home_assets/home_flyin_icon.png'),
   },
   {
     id: 'richmond-park',
@@ -118,21 +116,9 @@ export const LOCATIONS: AppLocation[] = [
     },
     mapZoom: { min: 12, max: 17 },
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    imageAsset: require('../assets/select_location_richmond_park_deer_looking_into_camera.jpeg'),
-  },
-  {
-    id: 'mystical-location',
-    name: 'Mystical New Location',
-    description: 'Something wild is coming. Stay tuned.',
-    status: 'inactive',
-    animal: 'unknown',
-    timezone: 'UTC',
-    center: { lat: 0, lng: 0 },
-    perimeterPolygon: [],
-    offlineTileBounds: { sw: [0, 0], ne: [0, 0] },
-    mapZoom: { min: 12, max: 17 },
+    imageAsset: require('../assets/location_richmond_assets/select_location_richmond_park_deer_looking_into_camera.jpeg'),
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    imageAsset: require('../assets/select_location_grey_placeholder.png'),
+    pinIcon: require('../assets/location_richmond_assets/deer_flyin_icon.png'),
   },
 ];
 

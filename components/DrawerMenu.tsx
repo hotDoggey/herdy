@@ -20,6 +20,11 @@ export default function DrawerMenu({ visible, onClose, onBuyCoffee }: Props) {
     onClose();
     setTimeout(() => router.push('/settings'), 220);
   };
+
+  const openWalkthrough = () => {
+    onClose();
+    setTimeout(() => router.push('/onboarding'), 220);
+  };
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -58,19 +63,26 @@ export default function DrawerMenu({ visible, onClose, onBuyCoffee }: Props) {
         <Text style={styles.drawerAppName}>Herdy</Text>
 
         <View style={styles.items}>
+          {/* Account — hidden until auth is implemented
           <TouchableOpacity style={styles.item}>
             <Ionicons name="person-outline" size={22} color="#333" />
             <Text style={styles.itemText}>Account</Text>
           </TouchableOpacity>
+          */}
 
           <TouchableOpacity style={styles.item} onPress={openSettings}>
             <Ionicons name="settings-outline" size={22} color="#333" />
             <Text style={styles.itemText}>Settings</Text>
           </TouchableOpacity>
 
+          <TouchableOpacity style={styles.item} onPress={openWalkthrough}>
+            <Ionicons name="map-outline" size={22} color="#333" />
+            <Text style={styles.itemText}>Get started</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.item} onPress={onBuyCoffee}>
             <MaterialCommunityIcons name="coffee" size={22} color="#333" />
-            <Text style={styles.itemText}>Buy me a coffee</Text>
+            <Text style={styles.itemText}>Support Herdy</Text>
           </TouchableOpacity>
         </View>
       </Animated.View>

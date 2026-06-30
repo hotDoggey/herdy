@@ -1,4 +1,4 @@
-import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -44,6 +44,13 @@ export default function LocationPickerSheet({ visible, onClose, onSelect }: Prop
     sheetRef.current?.close();
   }, []);
 
+  const renderBackdrop = useCallback(
+    (props: React.ComponentProps<typeof BottomSheetBackdrop>) => (
+      <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.4} />
+    ),
+    [],
+  );
+
   return (
     <BottomSheet
       ref={sheetRef}
@@ -51,6 +58,7 @@ export default function LocationPickerSheet({ visible, onClose, onSelect }: Prop
       snapPoints={snapPoints}
       topInset={insets.top}
       enablePanDownToClose
+      backdropComponent={renderBackdrop}
       onChange={handleChange}
       backgroundStyle={styles.sheetBackground}
       handleIndicatorStyle={styles.handleIndicator}
@@ -62,7 +70,7 @@ export default function LocationPickerSheet({ visible, onClose, onSelect }: Prop
       >
         <Text style={styles.title}>Select Location</Text>
 
-        {LOCATIONS.map((location) => {
+        {LOCATIONS.filter((l) => !l.hidden).map((location) => {
           const isSelectable = location.status === 'active';
           return (
             <TouchableOpacity
@@ -113,7 +121,7 @@ const styles = StyleSheet.create({
   },
 
   title: {
-    fontSize: 17,
+    fontSize: 22,
     fontWeight: '700',
     color: '#111',
     marginBottom: 16,

@@ -2,7 +2,7 @@ const IS_DEV = process.env.APP_VARIANT === 'development';
 
 /** @type {import('expo/config').ExpoConfig} */
 module.exports = {
-  name: IS_DEV ? 'Herdy (dev)' : 'herdy',
+  name: IS_DEV ? 'Herdy (dev)' : 'Herdy',
   slug: 'herdy',
   scheme: 'herdy',
   version: '1.0.0',
@@ -13,7 +13,7 @@ module.exports = {
   splash: {
     image: './assets/splash-icon.png',
     resizeMode: 'contain',
-    backgroundColor: '#ffffff',
+    backgroundColor: '#FEF3E2',
   },
   ios: {
     supportsTablet: true,
@@ -23,9 +23,10 @@ module.exports = {
     },
   },
   android: {
+    package: 'com.hotdoggey.herdy',
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
-      backgroundColor: '#ffffff',
+      backgroundColor: '#FEF3E2',
     },
     edgeToEdgeEnabled: true,
   },

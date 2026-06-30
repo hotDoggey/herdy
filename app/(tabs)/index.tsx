@@ -33,7 +33,8 @@ import DrawerMenu from '@/components/DrawerMenu';
 import NearbySheet from '@/components/NearbySheet';
 import LocationPickerSheet from '@/components/LocationPickerSheet';
 import PinDropSheet from '@/components/PinDropSheet';
-import { ACTIVE_LOCATION, type AppLocation } from '@/constants/locations';
+import PinFlyAnimation from '@/components/PinFlyAnimation';
+import { ACTIVE_LOCATION, LOCATIONS, type AppLocation } from '@/constants/locations';
 import { CLUSTER_EXPANSION_RADIUS_M, NEARBY_RADIUS_M } from '@/constants/variables';
 import {
   DEFAULT_THEME_ID,
@@ -44,7 +45,7 @@ import {
 import { EMPTY_GEOJSON, sightingsToGeoJSON } from '@/lib/decay';
 import { buildBoundaryGeoJSON, expandCluster } from '@/lib/geo';
 import { getDeviceId } from '@/lib/deviceId';
-import { addSighting, newSightingId, pingFirestore, subscribeSightings, type Sighting, type PendingPin } from '@/lib/firestore';
+import { addSighting, getDonationCount, newSightingId, pingFirestore, subscribeSightings, type Sighting, type PendingPin } from '@/lib/firestore';
 import { DEBUG } from '@/constants/debug';
 
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '');
@@ -93,6 +94,7 @@ const FILTER_TIME_STEPS = [
   { label: '1h', hours: 1 as const },
   { label: '2h', hours: 2 as const },
   { label: '4h', hours: 4 as const },
+  { label: '8h', hours: 8 as const },
 ];
 
 const FILTER_HERD_OPTIONS = [
@@ -161,20 +163,27 @@ function deviceUsesFahrenheit(): boolean {
 export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const cameraRef = useRef<Camera>(null);
+  const mapViewRef = useRef<MapView>(null);
+  const mapContainerLayout = useRef({ width: 0, height: 0 });
+  const [mapContainerReady, setMapContainerReady] = useState(false);
+  const [pinFlyAnim, setPinFlyAnim] = useState<{ icon: number; targetX: number; targetY: number } | null>(null);
   const [zoom, setZoom] = useState(INITIAL_ZOOM);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showPinDrop, setShowPinDrop] = useState(false);
   const [showCoffeeModal, setShowCoffeeModal] = useState(false);
+  const [donorCount, setDonorCount] = useState<number | null>(null);
+  const [lastPinLocationId, setLastPinLocationId] = useState<string | null>(null);
   const [locationGranted, setLocationGranted] = useState(false);
 
   const [selectedLocation, setSelectedLocation] = useState<AppLocation>(ACTIVE_LOCATION);
+  const initialLocationApplied = useRef(false);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
 
   const { width: screenWidth } = useWindowDimensions();
   // Popup is 88% wide, padding 24px each side, 2 gaps of 10px between 3 items
   const thumbSize = Math.min(Math.floor(((screenWidth * 0.88 - 48 - 20) / 3) * 0.82), 80);
 
-  const useFahrenheit = useMemo(() => deviceUsesFahrenheit(), []);
+  const [useFahrenheit, setUseFahrenheit] = useState(deviceUsesFahrenheit);
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [showWeatherPopup, setShowWeatherPopup] = useState(false);
 
@@ -190,12 +199,13 @@ export default function MapScreen() {
   const [showNearbySheet, setShowNearbySheet] = useState(false);
 
   const [mapStyle, setMapStyle] = useState<string>(Mapbox.StyleURL.Outdoors);
+  const [styleLoaded, setStyleLoaded] = useState(true);
   const [showMapStylePicker, setShowMapStylePicker] = useState(false);
 
   const [heatmapThemeId, setHeatmapThemeId] = useState<HeatmapThemeId>(DEFAULT_THEME_ID);
 
   const [showFiltersSheet, setShowFiltersSheet] = useState(false);
-  const [filterWindowHours, setFilterWindowHours] = useState<1 | 2 | 4>(4);
+  const [filterWindowHours, setFilterWindowHours] = useState<1 | 2 | 4 | 8>(4);
   const [filterMinHerd, setFilterMinHerd] = useState<'any' | '5+' | '10+'>('any');
   const [filterMyOnly, setFilterMyOnly] = useState(false);
   const [filterConfirmedOnly, setFilterConfirmedOnly] = useState(false);
@@ -243,6 +253,12 @@ export default function MapScreen() {
       ...prev,
       { localId, docId, locationId: selectedLocation.id, lat, lng, createdAt: new Date(), herdSize, deviceId: myDeviceId },
     ]);
+    if (selectedLocation.pinIcon && mapViewRef.current) {
+      try {
+        const pt = await mapViewRef.current.getPointInView([lng, lat]);
+        setPinFlyAnim({ icon: selectedLocation.pinIcon, targetX: pt[0], targetY: pt[1] });
+      } catch { /* non-critical */ }
+    }
     try {
       const writeTimeout = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('timeout')), 15_000),
@@ -251,6 +267,16 @@ export default function MapScreen() {
         addSighting({ locationId: selectedLocation.id, timezone: selectedLocation.timezone, lat, lng, herdSize }, docId),
         writeTimeout,
       ]);
+      // Show support prompt on every other pin drop (even counts: 0, 2, 4, …)
+      // Check before incrementing so count=0 fires on the very first pin.
+      const raw = await SecureStore.getItemAsync('herdy.pinCount');
+      const count = parseInt(raw ?? '0', 10) || 0;
+      await SecureStore.setItemAsync('herdy.pinCount', String(count + 1));
+      await SecureStore.setItemAsync('herdy.lastPinLocationId', selectedLocation.id);
+      setLastPinLocationId(selectedLocation.id);
+      if (count % 2 === 0) {
+        setTimeout(() => setShowCoffeeModal(true), 1500);
+      }
     } catch (err) {
       console.error('[handlePinSubmit]', err);
       setPendingPins((prev) => prev.filter((p) => p.localId !== localId));
@@ -273,6 +299,7 @@ export default function MapScreen() {
 
   useEffect(() => { getDeviceId().then((id) => { setMyDeviceId(id); myDeviceIdRef.current = id; }); }, []);
   useEffect(() => { pingFirestore(); }, []);
+  useEffect(() => { getDonationCount().then(setDonorCount); }, []);
 
   // Subscribe to live Firestore sightings for the selected location
   useEffect(() => {
@@ -304,10 +331,11 @@ export default function MapScreen() {
     recomputeGeoJSON(displayPins);
   }, [displayPins, recomputeGeoJSON]);
 
-  // Recompute when filter window changes
+  // Recompute when filter window changes, and persist the selection
   useEffect(() => {
     filterWindowMinutesRef.current = filterWindowHours * 60;
     recomputeGeoJSON(displayPinsRef.current);
+    SecureStore.setItemAsync('herdy.filterWindowHours', String(filterWindowHours));
   }, [filterWindowHours, recomputeGeoJSON]);
 
   // Recompute when herd size filter changes
@@ -410,11 +438,41 @@ export default function MapScreen() {
     return () => clearInterval(timer);
   }, [recomputeGeoJSON]);
 
-  // Re-read heatmap theme whenever this screen comes back into focus (e.g. returning from Settings)
+  // Re-read persisted settings whenever this screen gains focus (covers returning from Settings)
   useFocusEffect(
     useCallback(() => {
       SecureStore.getItemAsync(HEATMAP_THEME_STORAGE_KEY).then((stored) => {
         if (stored) setHeatmapThemeId(stored as HeatmapThemeId);
+      });
+      SecureStore.getItemAsync('herdy.tempUnit').then((stored) => {
+        if (stored) setUseFahrenheit(stored === 'F');
+      });
+      SecureStore.getItemAsync('herdy.lastPinLocationId').then((stored) => {
+        if (stored) setLastPinLocationId(stored);
+      });
+      SecureStore.getItemAsync('herdy.filterWindowHours').then((stored) => {
+        const parsed = parseInt(stored ?? '', 10);
+        if (parsed === 1 || parsed === 2 || parsed === 4 || parsed === 8) {
+          setFilterWindowHours(parsed);
+        }
+      });
+      SecureStore.getItemAsync('herdy.selectedLocationId').then((stored) => {
+        if (stored) {
+          const loc = LOCATIONS.find((l) => l.id === stored);
+          if (loc) {
+            setSelectedLocation(loc);
+            if (!initialLocationApplied.current) {
+              initialLocationApplied.current = true;
+              setTimeout(() => {
+                cameraRef.current?.setCamera({
+                  centerCoordinate: [loc.center.lng, loc.center.lat],
+                  zoomLevel: INITIAL_ZOOM,
+                  animationDuration: 600,
+                });
+              }, 500);
+            }
+          }
+        }
       });
     }, []),
   );
@@ -451,6 +509,7 @@ export default function MapScreen() {
 
   const handleLocationSelect = (location: AppLocation) => {
     setSelectedLocation(location);
+    SecureStore.setItemAsync('herdy.selectedLocationId', location.id);
     setShowTrail(true);
     cameraRef.current?.setCamera({
       centerCoordinate: [location.center.lng, location.center.lat],
@@ -476,14 +535,15 @@ export default function MapScreen() {
   // ── Dev tool handlers ─────────────────────────────────────────────────────
 
   const handleTitlePress = () => {
-    if (!__DEV__) return;
-    devTapCount.current += 1;
-    if (devTapTimer.current) clearTimeout(devTapTimer.current);
-    devTapTimer.current = setTimeout(() => { devTapCount.current = 0; }, 600);
-    if (devTapCount.current >= 3) {
-      devTapCount.current = 0;
-      setDevModeActive(prev => !prev);
-    }
+    // Dev pin-placement mode — disabled before launch, re-enable by restoring body
+    // if (!__DEV__) return;
+    // devTapCount.current += 1;
+    // if (devTapTimer.current) clearTimeout(devTapTimer.current);
+    // devTapTimer.current = setTimeout(() => { devTapCount.current = 0; }, 600);
+    // if (devTapCount.current >= 3) {
+    //   devTapCount.current = 0;
+    //   setDevModeActive(prev => !prev);
+    // }
   };
 
   const handleMapPress = (feature: GeoJSON.Feature) => {
@@ -514,8 +574,8 @@ export default function MapScreen() {
     setDevSubmitting(true);
     try {
       await addSighting({
-        locationId: ACTIVE_LOCATION.id,
-        timezone: ACTIVE_LOCATION.timezone,
+        locationId: selectedLocation.id,
+        timezone: selectedLocation.timezone,
         lat: devCoords[1],
         lng: devCoords[0],
         herdSize: devHerdSize,
@@ -546,23 +606,37 @@ export default function MapScreen() {
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.headerIconBtn}>
-          <View style={styles.avatarCircle}>
-            <Ionicons name="person" size={22} color="#666" />
-          </View>
-        </TouchableOpacity>
+        {weather && (
+          <TouchableOpacity style={styles.headerWeatherBtn} onPress={() => setShowWeatherPopup(true)} activeOpacity={0.7}>
+            <Text style={styles.wxWidgetEmoji}>{weatherEmoji(weather.code, weather.isDay)}</Text>
+            <Text style={styles.weatherTemp}>
+              {useFahrenheit
+                ? `${Math.round(weather.temp * 9 / 5 + 32)}°F`
+                : `${Math.round(weather.temp)}°C`}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* ── Map ── */}
-      <View style={styles.mapContainer}>
-        <MapView
+      <View
+        style={styles.mapContainer}
+        onLayout={(e) => {
+          const { width, height } = e.nativeEvent.layout;
+          mapContainerLayout.current = { width, height };
+          if (width > 0 && height > 0) setMapContainerReady(true);
+        }}
+      >
+        {mapContainerReady && <MapView
+          ref={mapViewRef}
           style={styles.map}
           styleURL={mapStyle}
           attributionEnabled={false}
           scaleBarEnabled={false}
+          onDidFinishLoadingStyle={() => setStyleLoaded(true)}
           onPress={handleMapPress}
-          onRegionIsChanging={(feature) => {
-            const z = feature.properties?.zoomLevel;
+          onCameraChanged={(state) => {
+            const z = state.properties.zoom;
             if (typeof z === 'number') setZoom(Math.round(z));
           }}
         >
@@ -574,7 +648,7 @@ export default function MapScreen() {
             }}
           />
 
-          <UserLocation
+          {styleLoaded && <UserLocation
             visible={locationGranted}
             showsUserHeadingIndicator
             onUpdate={(loc) => {
@@ -591,7 +665,7 @@ export default function MapScreen() {
               setNearbySightings(nearby);
               setShowNearbySheet(true);
             }}
-          />
+          />}
 
           {/* Outside-boundary darkening mask */}
           <ShapeSource id="boundary-mask-source" shape={boundary.mask}>
@@ -639,25 +713,13 @@ export default function MapScreen() {
           <ShapeSource id="sightings-source" shape={geoJSON}>
             <HeatmapLayer id="cow-heatmap" sourceID="sightings-source" style={heatmapStyle} />
           </ShapeSource>
-        </MapView>
+        </MapView>}
 
         {/* Dev mode indicator — only shown in __DEV__ builds */}
         {__DEV__ && devModeActive && (
           <View style={styles.devBanner}>
             <Text style={styles.devBannerText}>⚙ DEV MODE — tap the map to drop a pin</Text>
           </View>
-        )}
-
-        {/* Weather widget — top left, mirrors filter button */}
-        {weather && (
-          <TouchableOpacity style={styles.weatherWidget} onPress={() => setShowWeatherPopup(true)} activeOpacity={0.8}>
-            <Text style={styles.wxWidgetEmoji}>{weatherEmoji(weather.code, weather.isDay)}</Text>
-            <Text style={styles.weatherTemp}>
-              {useFahrenheit
-                ? `${Math.round(weather.temp * 9 / 5 + 32)}°F`
-                : `${Math.round(weather.temp)}°C`}
-            </Text>
-          </TouchableOpacity>
         )}
 
         {/* Location pill */}
@@ -703,10 +765,32 @@ export default function MapScreen() {
         {/* Drop-pin FAB */}
         <TouchableOpacity
           style={[styles.pinFab, { bottom: insets.bottom + 52 }]}
-          onPress={() => setShowPinDrop(true)}
+          onPress={() => {
+            const loc = userLocationRef.current;
+            if (loc) {
+              cameraRef.current?.setCamera({
+                centerCoordinate: [loc.lng, loc.lat],
+                zoomLevel: INITIAL_ZOOM,
+                animationDuration: 400,
+              });
+            }
+            setShowPinDrop(true);
+          }}
         >
           <MaterialCommunityIcons name="map-marker-plus" size={28} color="#fff" />
         </TouchableOpacity>
+
+        {/* Pin fly-in animation */}
+        {pinFlyAnim && (
+          <PinFlyAnimation
+            icon={pinFlyAnim.icon}
+            targetX={pinFlyAnim.targetX}
+            targetY={pinFlyAnim.targetY}
+            containerWidth={mapContainerLayout.current.width}
+            containerHeight={mapContainerLayout.current.height}
+            onComplete={() => setPinFlyAnim(null)}
+          />
+        )}
       </View>
 
       {/* ── Drawer ── */}
@@ -721,14 +805,24 @@ export default function MapScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <MaterialCommunityIcons name="coffee" size={36} color="#3C8C7C" style={styles.coffeeIcon} />
-            <Text style={styles.modalTitle}>Support Herdy</Text>
+            <Text style={styles.modalTitle}>Enjoying Herdy?</Text>
             <Text style={styles.coffeeBody}>
-              Hi, I'm a solo developer and Herdy started as a random idea — a small way to help people find the herd at Fanal without disturbing it.
+              Herdy is free, with no ads and no data sold. 
             </Text>
             <Text style={styles.coffeeBody}>
-              I'm glad it's out in the world now, and I hope it makes your visit a little more special. If you've found it helpful and want to keep the project going, feel free to fuel my work with a coffee ;)
+              I created this app after being moved by the magical feeling of walking through the thick fog of Fanal searching for the herd of cows. On that particular visit, I never found them, and the idea for Herdy was born: helping others discover and share those special moments together.
             </Text>
-            <Text style={styles.coffeeHeart}>❤️  Much appreciated!</Text>
+            <Text style={styles.coffeeBody}>
+              Every cow spotted on the map comes from someone exploring the forest just like you.
+            </Text>
+            <Text style={styles.coffeeBody}>
+              If Herdy made your visit a little more magical, you can help support the project and keep it running here. Thank you ❤️
+            </Text>
+            <Text style={styles.coffeeSupporters}>
+              {donorCount !== null && donorCount > 0
+                ? `${donorCount} ${donorCount === 1 ? 'person has' : 'people have'} already supported Herdy — join them.`
+                : 'Be the first to support Herdy.'}
+            </Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalBtn, styles.modalBtnCancel]}
@@ -743,7 +837,7 @@ export default function MapScreen() {
                   Linking.openURL('https://ko-fi.com/biserasparuhov');
                 }}
               >
-                <Text style={styles.modalBtnConfirmText}>☕  Buy a coffee</Text>
+                <Text style={styles.modalBtnConfirmText}>Support Herdy</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -872,7 +966,7 @@ export default function MapScreen() {
                   <TouchableOpacity
                     key={style.mapboxId}
                     style={styles.mapStyleItem}
-                    onPress={() => setMapStyle(style.styleURL)}
+                    onPress={() => { setMapStyle(style.styleURL); setStyleLoaded(false); }}
                     activeOpacity={0.8}
                   >
                     <View style={[styles.mapStyleThumb, selected && styles.mapStyleThumbSelected, { width: thumbSize, height: thumbSize }]}>
@@ -1130,6 +1224,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  headerWeatherBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    padding: 6,
+  },
 
   // ── Map ──
   mapContainer: {
@@ -1317,6 +1417,14 @@ const styles = StyleSheet.create({
     color: '#444',
     lineHeight: 21,
     marginBottom: 12,
+  },
+  coffeeSupporters: {
+    fontSize: 13,
+    color: '#3C8C7C',
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 26,
   },
   coffeeHeart: {
     fontSize: 14,
@@ -1701,7 +1809,7 @@ const styles = StyleSheet.create({
   },
 
   wxWidgetEmoji: {
-    fontSize: 15,
+    fontSize: 18,
   },
   wxBigEmoji: {
     fontSize: 48,
@@ -1711,26 +1819,8 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
 
-  // ── Weather widget ──
-  weatherWidget: {
-    position: 'absolute',
-    top: 14,
-    left: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#fff',
-    borderRadius: 100,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.14,
-    shadowRadius: 10,
-    elevation: 6,
-  },
   weatherTemp: {
-    fontSize: 13,
+    fontSize: 18,
     fontWeight: '600',
     color: '#111',
   },

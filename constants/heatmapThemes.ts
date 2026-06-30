@@ -63,5 +63,5 @@ export const HEATMAP_THEMES: HeatmapTheme[] = [
   },
 ];
 
-export const DEFAULT_THEME_ID: HeatmapThemeId = 'teal';
+export const DEFAULT_THEME_ID: HeatmapThemeId = 'ember';
 export const HEATMAP_THEME_STORAGE_KEY = 'herdy.heatmapTheme';

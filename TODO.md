@@ -1,46 +1,8 @@
 # Herdy — TODO
 
----
-
-## In Progress
-
-### Trail PR13 Visibility Toggle
-Add a toggle to the filters popup that shows/hides the PR13 trail overlay on the map. Only show the toggle when Fanal Forest is the selected location. The trail layer is already rendered in the map — this is wiring a boolean state into the layer's visibility.
-
----
-
-## Quick Wins (hours)
-
-### Distance Calculation Check
-Double-check the haversine implementation in `lib/geo.ts` — there's a suspicion it may be doubling the distance. Verify the formula against a known coordinate pair.
-
-### Sighting Age Filter — Persistent Storage
-The sighting window filter (1h / 2h / 4h) currently resets on every app launch. Persist the user's choice so it survives restarts.
-- Store selection in SecureStore on change
-- Read it on app launch (initial state)
-- Optionally add 8h / 24h options to the existing step slider
-
----
-
-## Medium (1–2 days)
-
-### Tappable Heatmap — Sighting Detail Drawer
-The heatmap is currently a pure visual layer with no tap interaction. Mapbox supports tap events on ShapeSource points, so the underlying GeoJSON features are tappable; the heatmap blob itself is not (it's a density render), so the hitbox lives on the source points, not the visual cloud.
-
-**What needs building:**
-- Tap handler: on map press, take the tap coordinate and run a client-side proximity query against the in-memory sightings array — no extra Firestore read needed
-- Cluster expansion: find all pins within 30m of the tap, then for each find all within 30m, repeat until no new pins are added (BFS). Simpler fallback: single-radius query — all pins within 50m of the tap point, done in one pass. Ship the fallback first, swap in BFS if needed
-- Result drawer: same bottom-sheet pattern as the location picker — slide up from bottom, list of sightings sorted newest first, each row showing herd size, time ago ("23 min ago"), and photo thumbnail if one exists
-- Empty state: if tap lands far from any pin, no-op or show "No recent sightings here — be the first to drop a pin"
-- `haversineDistance()` from `lib/geo.ts` already exists — reuse it directly
-
 ### Settings Panel — Remaining Items
 The settings screen exists with heatmap colour. Still to add:
 - **Notifications:** proximity alert on/off, alert distance (250m / 500m / 1km), quiet hours
-- **Units:** km vs. miles
-- **Privacy:** use display name on feed vs. post anonymously (relevant once accounts exist)
-- **Data:** clear cached map tiles, view storage used
-- **About:** app version, open-source licences, IFCN / UNESCO attribution
 - **Rate the app:** deep link to App Store review prompt
 - **Feedback / Report a bug:** mailto or in-app form
 

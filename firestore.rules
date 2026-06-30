@@ -2,18 +2,37 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    match /system_counts/{id} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     match /sightings/{id} {
       // Anyone can read active sightings — the heatmap is public
       allow read: if true;
 
-      // Anonymous pin drop — validate required fields are present and timestamp is server-set
-      allow create: if request.resource.data.keys().hasAll([
-                        'locationId', 'position', 'createdAt',
-                        'deviceId', 'dateKey', 'confirmed', 'isOutOfBounds'
-                      ])
-                   && request.resource.data.createdAt is timestamp
-                   && request.resource.data.locationId is string
-                   && request.resource.data.deviceId is string;
+      // Anonymous pin drop — validate required fields, types, and data integrity
+      allow create: if
+        // All required fields must be present
+        request.resource.data.keys().hasAll([
+          'locationId', 'position', 'createdAt',
+          'deviceId', 'dateKey', 'confirmed', 'isOutOfBounds'
+        ])
+        // createdAt must be a server timestamp within ±2 minutes of now
+        // (prevents backdated/future-dated pins that would distort the 4-hour decay)
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.createdAt >= request.time - duration.value(2, 'm')
+        && request.resource.data.createdAt <= request.time + duration.value(2, 'm')
+        // locationId must be a known valid location
+        && request.resource.data.locationId in ['fanal', 'home-test', 'richmond-park']
+        // deviceId must be a non-empty string (client UUID)
+        && request.resource.data.deviceId is string
+        && request.resource.data.deviceId.size() > 0
+        && request.resource.data.deviceId.size() <= 64
+        // position must be a valid GeoPoint
+        && request.resource.data.position is latlng
+        // confirmed counter must start at 0
+        && request.resource.data.confirmed == 0;
 
       // No editing or deleting pins after submission
       allow update, delete: if false;

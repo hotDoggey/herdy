@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -11,21 +11,44 @@ import {
   HEATMAP_THEME_STORAGE_KEY,
   type HeatmapThemeId,
 } from '@/constants/heatmapThemes';
+import { APP_VERSION } from '@/constants/variables';
+import { getSystemVar } from '@/lib/firestore';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [selectedTheme, setSelectedTheme] = useState<HeatmapThemeId>(DEFAULT_THEME_ID);
+  const [useFahrenheit, setUseFahrenheit] = useState(false);
 
   useEffect(() => {
     SecureStore.getItemAsync(HEATMAP_THEME_STORAGE_KEY).then((stored) => {
       if (stored) setSelectedTheme(stored as HeatmapThemeId);
+    });
+    SecureStore.getItemAsync('herdy.tempUnit').then((stored) => {
+      if (stored) setUseFahrenheit(stored === 'F');
     });
   }, []);
 
   const selectTheme = async (id: HeatmapThemeId) => {
     setSelectedTheme(id);
     await SecureStore.setItemAsync(HEATMAP_THEME_STORAGE_KEY, id);
+  };
+
+  const selectTempUnit = async (fahrenheit: boolean) => {
+    setUseFahrenheit(fahrenheit);
+    await SecureStore.setItemAsync('herdy.tempUnit', fahrenheit ? 'F' : 'C');
+  };
+
+  const rateApp = async () => {
+    const docId = Platform.OS === 'ios' ? 'ios_review_url' : 'android_review_url';
+    const url = await getSystemVar(docId);
+    if (!url) {
+      Alert.alert('Not available yet', 'The App Store listing isn\'t live yet — check back soon.');
+      return;
+    }
+    Linking.openURL(url).catch(() =>
+      Alert.alert('Could not open link', 'Please try again later.')
+    );
   };
 
   return (
@@ -62,6 +85,37 @@ export default function SettingsScreen() {
             </TouchableOpacity>
           );
         })}
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Temperature</Text>
+
+        {[{ label: '°C — Celsius', fahrenheit: false }, { label: '°F — Fahrenheit', fahrenheit: true }].map(({ label, fahrenheit }) => {
+          const selected = useFahrenheit === fahrenheit;
+          return (
+            <TouchableOpacity
+              key={label}
+              style={[styles.themeRow, selected && styles.themeRowSelected]}
+              onPress={() => selectTempUnit(fahrenheit)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.themeLabel, selected && styles.themeLabelSelected]}>{label}</Text>
+              {selected && <Ionicons name="checkmark" size={20} color="#3C8C7C" />}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>About</Text>
+        <View style={styles.aboutRow}>
+          <Text style={styles.aboutLabel}>Version</Text>
+          <Text style={styles.aboutValue}>{APP_VERSION}</Text>
+        </View>
+        <TouchableOpacity style={[styles.aboutRow, styles.aboutRowTop]} onPress={rateApp} activeOpacity={0.7}>
+          <Text style={styles.aboutLabel}>Rate the app</Text>
+          <Ionicons name="star-outline" size={18} color="#999" />
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -140,5 +194,26 @@ const styles = StyleSheet.create({
   themeLabelSelected: {
     color: '#3C8C7C',
     fontWeight: '600',
+  },
+  aboutRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: '#FAFAFA',
+  },
+  aboutRowTop: {
+    marginTop: 8,
+  },
+  aboutLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+  },
+  aboutValue: {
+    fontSize: 16,
+    color: '#999',
   },
 });

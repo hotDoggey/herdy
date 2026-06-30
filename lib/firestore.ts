@@ -1,3 +1,4 @@
+import * as Device from 'expo-device';
 import {
   GeoPoint,
   Timestamp,
@@ -163,6 +164,7 @@ export async function addSighting(opts: AddSightingOptions, docId: string): Prom
   const deviceId = await getDeviceId();
   if (DEBUG) console.log('[addSighting] calling setDoc, id:', docId);
   const ref = doc(sightingsRef, docId);
+  const deviceModel = [Device.brand, Device.modelName].filter(Boolean).join(' ') || 'unknown';
   await setDoc(ref, {
     locationId: opts.locationId,
     position: new GeoPoint(opts.lat, opts.lng),
@@ -171,7 +173,32 @@ export async function addSighting(opts: AddSightingOptions, docId: string): Prom
     confirmed: 0,
     isOutOfBounds: false,
     deviceId,
+    deviceModel,
     ...(opts.herdSize ? { herdSize: opts.herdSize } : {}),
   });
   if (DEBUG) console.log('[addSighting] setDoc resolved, id:', docId);
+}
+
+/** Read a string value from the system_vars collection by document ID. */
+export async function getSystemVar(docId: string): Promise<string | null> {
+  try {
+    const snap = await getDoc(doc(db, 'system_vars', docId));
+    if (!snap.exists()) return null;
+    const value = snap.data().value;
+    return typeof value === 'string' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Read the supporter count from the manually-maintained system_counts document. */
+export async function getDonationCount(): Promise<number | null> {
+  try {
+    const snap = await getDoc(doc(db, 'system_counts', 'kifi_donations_count'));
+    if (!snap.exists()) return null;
+    const value = snap.data().value;
+    return typeof value === 'number' ? value : null;
+  } catch {
+    return null;
+  }
 }

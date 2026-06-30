@@ -1,4 +1,4 @@
-import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -80,6 +80,13 @@ export default function PinDropSheet({ visible, onClose, onSubmit, location, dis
   const handleChange = useCallback(
     (index: number) => { if (index === -1) onClose(); },
     [onClose],
+  );
+
+  const renderBackdrop = useCallback(
+    (props: React.ComponentProps<typeof BottomSheetBackdrop>) => (
+      <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.4} />
+    ),
+    [],
   );
 
   const handleSubmit = () => {
@@ -201,6 +208,7 @@ export default function PinDropSheet({ visible, onClose, onSubmit, location, dis
       snapPoints={snapPoints}
       topInset={insets.top}
       enablePanDownToClose
+      backdropComponent={renderBackdrop}
       onChange={handleChange}
       backgroundStyle={styles.sheetBackground}
       handleIndicatorStyle={styles.handleIndicator}
