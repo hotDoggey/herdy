@@ -30,6 +30,7 @@ function hasDuplicateNearby(
   deviceId: string,
   pins: Sighting[],
 ): boolean {
+  if (__DEV__) return false; // disabled for testing — remove this line to restore the cooldown
   const now = Date.now();
   return pins.some(
     (p) =>

@@ -6,24 +6,6 @@ The settings screen exists with heatmap colour. Still to add:
 - **Rate the app:** deep link to App Store review prompt
 - **Feedback / Report a bug:** mailto or in-app form
 
-### Offline Pin Queue
-Persist `pendingPins` to SecureStore so pins survive app restarts when submitted offline. Send them to Firestore when connectivity is restored.
-
-**Current behaviour (MVP):** If `addSighting` fails (timeout / no network), the pending pin is removed from local state immediately. The pin disappears and the user gets no feedback.
-
-**What needs building:**
-- On pin submit: write the pending pin to storage before the Firestore call
-- On app launch: reload any persisted pending pins and attempt to re-send them
-- Track send status per pin: `queued | sending | committed | failed`
-- Remove from storage once the docId appears in a Firestore snapshot
-- Show a subtle indicator on pins that are still queued (e.g. reduced opacity)
-
-**Where it fits:**
-- New `lib/pendingQueue.ts` — read/write helpers
-- `handlePinSubmit` in `app/(tabs)/index.tsx` — call queue helpers instead of removing on failure
-- On-launch effect in `index.tsx` — drain the queue on startup
-
----
 
 ## Larger Features
 

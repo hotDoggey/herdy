@@ -57,9 +57,19 @@ export default function OnboardingScreen() {
   const flatListRef = useRef<Animated.FlatList<Slide>>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
   const [currentIndex, setCurrentIndex] = useState(0);
+  // Measured height of the FlatList area — slides are clamped to this so they
+  // never extend behind the bottom nav.
+  const [listHeight, setListHeight] = useState(0);
 
-  const imageHeight = Math.round(screenHeight * 0.55);
   const isLast = currentIndex === SLIDES.length - 1;
+
+  // Scale text down minimally on shorter screens (baseline: iPhone 14 Pro at 852pt)
+  const fontScale = Math.min(1, Math.max(0.8, screenHeight / 852));
+
+  // On smaller screens shrink the image fraction to give the text area more room.
+  // Interpolates from 0.44 (at fontScale 0.8) to 0.50 (at fontScale 1.0).
+  const imageFraction = 0.44 + 0.06 * ((fontScale - 0.8) / 0.2);
+  const imageHeight = Math.round(screenHeight * imageFraction);
 
   const completeOnboarding = useCallback(async () => {
     await SecureStore.setItemAsync('herdy.onboardingComplete', 'true');
@@ -87,7 +97,10 @@ export default function OnboardingScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: Slide }) => (
-      <View style={{ width: screenWidth }}>
+      // height is pinned to the measured FlatList height so content never
+      // spills behind the bottom nav bar. paddingTop keeps the image below
+      // the Dynamic Island / notch.
+      <View style={{ width: screenWidth, height: listHeight || undefined, paddingTop: insets.top }}>
         {/* Image */}
         <View style={{ width: screenWidth, height: imageHeight }}>
           <Image
@@ -96,15 +109,28 @@ export default function OnboardingScreen() {
             resizeMode="cover"
           />
           {item.showBranding && (
-            <Text style={[styles.brandingText, { top: insets.top + 18, left: 22 }]}>
+            <Text style={[styles.brandingText, { top: 18, left: 22 }]}>
               Herdy
             </Text>
           )}
         </View>
 
-        {/* Text content */}
-        <View style={styles.slideContent}>
-          <Text style={styles.headline}>{item.headline}</Text>
+        {/* Text content — flex: 1 fills exactly the remaining space after the image */}
+        <View style={[
+          styles.slideContent,
+          { paddingTop: Math.round(28 * fontScale) },
+          listHeight > 0 && { flex: 1 },
+        ]}>
+          <Text
+            numberOfLines={2}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
+            style={[styles.headline, {
+              fontSize: Math.round(34 * fontScale),
+              lineHeight: Math.round(40 * fontScale),
+              marginBottom: Math.round(14 * fontScale),
+            }]}
+          >{item.headline}</Text>
 
           <Text style={styles.body}>
             {item.bodyBefore}
@@ -123,7 +149,7 @@ export default function OnboardingScreen() {
         </View>
       </View>
     ),
-    [screenWidth, imageHeight, insets.top],
+    [screenWidth, imageHeight, insets.top, fontScale, listHeight],
   );
 
   return (
@@ -139,24 +165,29 @@ export default function OnboardingScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Slides */}
-      <Animated.FlatList
-        ref={flatListRef}
-        data={SLIDES}
-        keyExtractor={(item) => item.key}
-        renderItem={renderItem}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        scrollEventThrottle={16}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-          { useNativeDriver: false },
-        )}
-        onMomentumScrollEnd={handleMomentumScrollEnd}
-        bounces={false}
+      {/* Slides — wrapper captures the available height above the bottom nav */}
+      <View
         style={{ flex: 1 }}
-      />
+        onLayout={(e) => setListHeight(e.nativeEvent.layout.height)}
+      >
+        <Animated.FlatList
+          ref={flatListRef}
+          data={SLIDES}
+          keyExtractor={(item) => item.key}
+          renderItem={renderItem}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+            { useNativeDriver: false },
+          )}
+          onMomentumScrollEnd={handleMomentumScrollEnd}
+          bounces={false}
+          style={{ flex: 1 }}
+        />
+      </View>
 
       {/* Bottom nav */}
       <View style={[styles.bottomNav, { paddingBottom: insets.bottom + 20 }]}>
@@ -222,7 +253,7 @@ const styles = StyleSheet.create({
   },
 
   slideContent: {
-    paddingHorizontal: 28,
+    paddingHorizontal: 20,
     paddingTop: 28,
   },
 

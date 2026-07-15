@@ -16,14 +16,14 @@ module.exports = {
     backgroundColor: '#FEF3E2',
   },
   ios: {
-    supportsTablet: true,
-    bundleIdentifier: 'com.hotdoggey.herdy',
+    supportsTablet: false,
+    bundleIdentifier: 'com.biserdev.herdy',
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
     },
   },
   android: {
-    package: 'com.hotdoggey.herdy',
+    package: 'com.biserdev.herdy',
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
       backgroundColor: '#FEF3E2',
@@ -34,14 +34,16 @@ module.exports = {
     favicon: './assets/favicon.png',
   },
   plugins: [
-    [
-      '@rnmapbox/maps',
-      {
-        RNMapboxMapsDownloadToken: process.env.RNMAPBOX_MAPS_DOWNLOAD_TOKEN ?? '',
-      },
-    ],
+    '@rnmapbox/maps',
     './plugins/withSwiftConcurrencyFix',
     'expo-router',
+    [
+      'expo-location',
+      {
+        locationWhenInUsePermission:
+          "Herdy uses your location to center the map, confirm you're on the trail before dropping a pin, and gently remind you when you're near the herd. Your location is never stored or shared.",
+      },
+    ],
   ],
   extra: {
     eas: {

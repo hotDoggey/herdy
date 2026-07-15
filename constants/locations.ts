@@ -74,7 +74,6 @@ export const LOCATIONS: AppLocation[] = [
     id: 'home-test',
     name: 'Home',
     description: 'Test location for development.',
-    hidden: true,
     status: 'active',
     animal: 'test',
     timezone: 'Europe/London',
@@ -94,6 +93,7 @@ export const LOCATIONS: AppLocation[] = [
     imageAsset: require('../assets/location_home_assets/select_location_home4testing.jpeg'),
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     pinIcon: require('../assets/location_home_assets/home_flyin_icon.png'),
+    hidden: true,
   },
   {
     id: 'richmond-park',

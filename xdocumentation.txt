@@ -15,3 +15,9 @@ have partnerships with tour guides and car rentals on island to promote them and
 
 
 Dev pin-placement mode disabled — triple-tap is commented out, code preserved
+
+
+for permanent install on ios device:
+xcode > Product > Scheme > Edit Scheme > Run on the left > 
+Change Build Configuration from Debug to Release > 
+close and Cmd + R

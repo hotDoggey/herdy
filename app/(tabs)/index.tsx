@@ -17,6 +17,7 @@ import * as Location from 'expo-location';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  AppState,
   Image,
   Linking,
   Modal,
@@ -34,6 +35,7 @@ import NearbySheet from '@/components/NearbySheet';
 import LocationPickerSheet from '@/components/LocationPickerSheet';
 import PinDropSheet from '@/components/PinDropSheet';
 import PinFlyAnimation from '@/components/PinFlyAnimation';
+import PinLingerMarker from '@/components/PinLingerMarker';
 import { ACTIVE_LOCATION, LOCATIONS, type AppLocation } from '@/constants/locations';
 import { CLUSTER_EXPANSION_RADIUS_M, NEARBY_RADIUS_M } from '@/constants/variables';
 import {
@@ -46,6 +48,7 @@ import { EMPTY_GEOJSON, sightingsToGeoJSON } from '@/lib/decay';
 import { buildBoundaryGeoJSON, expandCluster } from '@/lib/geo';
 import { getDeviceId } from '@/lib/deviceId';
 import { addSighting, getDonationCount, newSightingId, pingFirestore, subscribeSightings, type Sighting, type PendingPin } from '@/lib/firestore';
+import { dequeuePin, drainQueue, enqueuePin } from '@/lib/pinQueue';
 import { DEBUG } from '@/constants/debug';
 
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '');
@@ -166,8 +169,10 @@ export default function MapScreen() {
   const mapViewRef = useRef<MapView>(null);
   const mapContainerLayout = useRef({ width: 0, height: 0 });
   const [mapContainerReady, setMapContainerReady] = useState(false);
-  const [pinFlyAnim, setPinFlyAnim] = useState<{ icon: number; targetX: number; targetY: number } | null>(null);
+  const [pinFlyAnim, setPinFlyAnim] = useState<{ icon: number; targetX: number; targetY: number; lat: number; lng: number } | null>(null);
+  const [pinLingerMarker, setPinLingerMarker] = useState<{ icon: number; lat: number; lng: number } | null>(null);
   const [zoom, setZoom] = useState(INITIAL_ZOOM);
+  const [heading, setHeading] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showPinDrop, setShowPinDrop] = useState(false);
   const [showCoffeeModal, setShowCoffeeModal] = useState(false);
@@ -249,14 +254,16 @@ export default function MapScreen() {
     // that caused duplicates when the snapshot arrived before addSighting resolved.
     const docId = newSightingId();
     const localId = `local_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    const droppedAt = new Date();
+    await enqueuePin({ docId, locationId: selectedLocation.id, timezone: selectedLocation.timezone, lat, lng, herdSize, createdAt: droppedAt.toISOString() });
     setPendingPins((prev) => [
       ...prev,
-      { localId, docId, locationId: selectedLocation.id, lat, lng, createdAt: new Date(), herdSize, deviceId: myDeviceId },
+      { localId, docId, locationId: selectedLocation.id, lat, lng, createdAt: droppedAt, herdSize, deviceId: myDeviceId },
     ]);
     if (selectedLocation.pinIcon && mapViewRef.current) {
       try {
         const pt = await mapViewRef.current.getPointInView([lng, lat]);
-        setPinFlyAnim({ icon: selectedLocation.pinIcon, targetX: pt[0], targetY: pt[1] });
+        setPinFlyAnim({ icon: selectedLocation.pinIcon, targetX: pt[0], targetY: pt[1], lat, lng });
       } catch { /* non-critical */ }
     }
     try {
@@ -264,9 +271,10 @@ export default function MapScreen() {
         setTimeout(() => reject(new Error('timeout')), 15_000),
       );
       await Promise.race([
-        addSighting({ locationId: selectedLocation.id, timezone: selectedLocation.timezone, lat, lng, herdSize }, docId),
+        addSighting({ locationId: selectedLocation.id, timezone: selectedLocation.timezone, lat, lng, herdSize }, docId, droppedAt),
         writeTimeout,
       ]);
+      await dequeuePin(docId);
       // Show support prompt on every other pin drop (even counts: 0, 2, 4, …)
       // Check before incrementing so count=0 fires on the very first pin.
       const raw = await SecureStore.getItemAsync('herdy.pinCount');
@@ -280,6 +288,7 @@ export default function MapScreen() {
     } catch (err) {
       console.error('[handlePinSubmit]', err);
       setPendingPins((prev) => prev.filter((p) => p.localId !== localId));
+      // Queue entry intentionally kept — drainQueue() will retry on next launch
     }
   }, [myDeviceId, selectedLocation]);
 
@@ -300,6 +309,13 @@ export default function MapScreen() {
   useEffect(() => { getDeviceId().then((id) => { setMyDeviceId(id); myDeviceIdRef.current = id; }); }, []);
   useEffect(() => { pingFirestore(); }, []);
   useEffect(() => { getDonationCount().then(setDonorCount); }, []);
+  useEffect(() => {
+    drainQueue();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') drainQueue();
+    });
+    return () => sub.remove();
+  }, []);
 
   // Subscribe to live Firestore sightings for the selected location
   useEffect(() => {
@@ -482,6 +498,10 @@ export default function MapScreen() {
     heatmapColor: (HEATMAP_THEMES.find((t) => t.id === heatmapThemeId) ?? HEATMAP_THEMES[0]).colorRamp as unknown as string,
   }), [heatmapThemeId]);
 
+  const resetNorth = () => {
+    cameraRef.current?.setCamera({ heading: 0, animationDuration: 300 });
+  };
+
   const zoomIn = () => {
     const next = Math.min(zoom + 1, 20);
     setZoom(next);
@@ -535,15 +555,14 @@ export default function MapScreen() {
   // ── Dev tool handlers ─────────────────────────────────────────────────────
 
   const handleTitlePress = () => {
-    // Dev pin-placement mode — disabled before launch, re-enable by restoring body
-    // if (!__DEV__) return;
-    // devTapCount.current += 1;
-    // if (devTapTimer.current) clearTimeout(devTapTimer.current);
-    // devTapTimer.current = setTimeout(() => { devTapCount.current = 0; }, 600);
-    // if (devTapCount.current >= 3) {
-    //   devTapCount.current = 0;
-    //   setDevModeActive(prev => !prev);
-    // }
+    if (!__DEV__) return;
+    devTapCount.current += 1;
+    if (devTapTimer.current) clearTimeout(devTapTimer.current);
+    devTapTimer.current = setTimeout(() => { devTapCount.current = 0; }, 600);
+    if (devTapCount.current >= 3) {
+      devTapCount.current = 0;
+      setDevModeActive(prev => !prev);
+    }
   };
 
   const handleMapPress = (feature: GeoJSON.Feature) => {
@@ -638,6 +657,8 @@ export default function MapScreen() {
           onCameraChanged={(state) => {
             const z = state.properties.zoom;
             if (typeof z === 'number') setZoom(Math.round(z));
+            const h = state.properties.heading;
+            if (typeof h === 'number') setHeading(h);
           }}
         >
           <Camera
@@ -713,6 +734,15 @@ export default function MapScreen() {
           <ShapeSource id="sightings-source" shape={geoJSON}>
             <HeatmapLayer id="cow-heatmap" sourceID="sightings-source" style={heatmapStyle} />
           </ShapeSource>
+
+          {pinLingerMarker && (
+            <PinLingerMarker
+              icon={pinLingerMarker.icon}
+              lat={pinLingerMarker.lat}
+              lng={pinLingerMarker.lng}
+              onComplete={() => setPinLingerMarker(null)}
+            />
+          )}
         </MapView>}
 
         {/* Dev mode indicator — only shown in __DEV__ builds */}
@@ -745,6 +775,16 @@ export default function MapScreen() {
 
         {/* Bottom-left: zoom + locate */}
         <View style={[styles.leftControls, { bottom: insets.bottom + 52 }]}>
+          {Math.abs(heading) > 1 && (
+            <TouchableOpacity style={styles.controlBtn} onPress={resetNorth}>
+              <Ionicons
+                name="compass"
+                size={24}
+                color="#333"
+                style={{ transform: [{ rotate: `${-heading}deg` }] }}
+              />
+            </TouchableOpacity>
+          )}
           <View style={styles.zoomPair}>
             <TouchableOpacity style={styles.zoomBtn} onPress={zoomIn}>
               <Ionicons name="add" size={24} color="#333" />
@@ -788,7 +828,8 @@ export default function MapScreen() {
             targetY={pinFlyAnim.targetY}
             containerWidth={mapContainerLayout.current.width}
             containerHeight={mapContainerLayout.current.height}
-            onComplete={() => setPinFlyAnim(null)}
+            onLanded={() => setPinLingerMarker({ icon: pinFlyAnim.icon, lat: pinFlyAnim.lat, lng: pinFlyAnim.lng })}
+            onComplete={() => setTimeout(() => setPinFlyAnim(null), 400)}
           />
         )}
       </View>
@@ -821,7 +862,7 @@ export default function MapScreen() {
             <Text style={styles.coffeeSupporters}>
               {donorCount !== null && donorCount > 0
                 ? `${donorCount} ${donorCount === 1 ? 'person has' : 'people have'} already supported Herdy — join them.`
-                : 'Be the first to support Herdy.'}
+                : 'Be the first to support Herdy. No literally, you would be the first :).'}
             </Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -1061,6 +1102,7 @@ export default function MapScreen() {
                 thumbColor={filterMyOnly ? '#3C8C7C' : '#fff'}
               />
             </View>
+            {/* Confirmed-sightings toggle — hidden for now, verification flow isn't built yet
             <View style={styles.filterToggleRow}>
               <View style={styles.filterToggleLabelRow}>
                 <Text style={styles.filterToggleLabel}>Confirmed sightings</Text>
@@ -1082,6 +1124,7 @@ export default function MapScreen() {
                 thumbColor={filterConfirmedOnly ? '#3C8C7C' : '#fff'}
               />
             </View>
+            */}
 
             {selectedLocation.id === 'fanal' && (
               <View style={styles.filterToggleRow}>

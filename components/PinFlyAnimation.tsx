@@ -5,14 +5,13 @@ import Animated, {
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
-  withDelay,
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
 
 const ICON_SIZE = 72;
-const RISE_MS = 420;
-const FALL_MS = 320;
+const RISE_MS = 600;
+const FALL_MS = 450;
 
 interface Props {
   icon: number;
@@ -20,6 +19,7 @@ interface Props {
   targetY: number;
   containerWidth: number;
   containerHeight: number;
+  onLanded: () => void;
   onComplete: () => void;
 }
 
@@ -29,41 +29,30 @@ export default function PinFlyAnimation({
   targetY,
   containerWidth,
   containerHeight,
+  onLanded,
   onComplete,
 }: Props) {
-  // Random X between 20%–80% of width so it never hugs an edge
   const startX = containerWidth * (0.2 + Math.random() * 0.6);
-  // Center of icon sits right on the bottom edge — visibly launches from there
   const startY = containerHeight;
 
-  // Peak sits above the target — at least 160px clearance, scales with throw distance
   const arcHeight = Math.max(160, Math.abs(startY - targetY) * 0.5);
   const peakY = targetY - arcHeight;
 
   const animX = useSharedValue(startX);
   const animY = useSharedValue(startY);
-  const opacity = useSharedValue(0);
 
   useEffect(() => {
-    opacity.value = withTiming(1, { duration: 150 });
-
-    // X glides smoothly to target across the full flight duration
     animX.value = withTiming(
       targetX,
       { duration: RISE_MS + FALL_MS, easing: Easing.inOut(Easing.quad) },
       (finished) => {
         if (!finished) return;
-        // After landing, pause then fade out
-        opacity.value = withDelay(
-          320,
-          withTiming(0, { duration: 180 }, (f) => {
-            if (f) runOnJS(onComplete)();
-          }),
-        );
+        // Hand off instantly — marker appears, overlay vanishes
+        runOnJS(onLanded)();
+        runOnJS(onComplete)();
       },
     );
 
-    // Y rises to peak (ease-out = slows at top) then drops to target (ease-in = accelerates down)
     animY.value = withSequence(
       withTiming(peakY, { duration: RISE_MS, easing: Easing.out(Easing.quad) }),
       withTiming(targetY, { duration: FALL_MS, easing: Easing.in(Easing.quad) }),
@@ -76,7 +65,7 @@ export default function PinFlyAnimation({
       { translateX: animX.value - ICON_SIZE / 2 },
       { translateY: animY.value - ICON_SIZE / 2 },
     ],
-    opacity: opacity.value,
+    opacity: 1,
   }));
 
   return (

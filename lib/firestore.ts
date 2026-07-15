@@ -158,8 +158,9 @@ export function newSightingId(): string {
  * Write an anonymous pin drop to Firestore using a caller-supplied document ID.
  * The ID must be pre-generated with newSightingId() before any async work so
  * the pending-pin dedup can match against snapshots without a docId: null phase.
+ * Pass createdAt when retrying a queued offline pin so the original drop time is preserved.
  */
-export async function addSighting(opts: AddSightingOptions, docId: string): Promise<void> {
+export async function addSighting(opts: AddSightingOptions, docId: string, createdAt?: Date): Promise<void> {
   if (DEBUG) console.log('[addSighting] fetching deviceId');
   const deviceId = await getDeviceId();
   if (DEBUG) console.log('[addSighting] calling setDoc, id:', docId);
@@ -168,7 +169,7 @@ export async function addSighting(opts: AddSightingOptions, docId: string): Prom
   await setDoc(ref, {
     locationId: opts.locationId,
     position: new GeoPoint(opts.lat, opts.lng),
-    createdAt: Timestamp.now(),
+    createdAt: createdAt ? Timestamp.fromDate(createdAt) : Timestamp.now(),
     dateKey: localDateKey(opts.timezone),
     confirmed: 0,
     isOutOfBounds: false,
