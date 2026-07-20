@@ -179,6 +179,7 @@ export default function MapScreen() {
   const [donorCount, setDonorCount] = useState<number | null>(null);
   const [lastPinLocationId, setLastPinLocationId] = useState<string | null>(null);
   const [locationGranted, setLocationGranted] = useState(false);
+  const [showLocationDeniedModal, setShowLocationDeniedModal] = useState(false);
 
   const [selectedLocation, setSelectedLocation] = useState<AppLocation>(ACTIVE_LOCATION);
   const initialLocationApplied = useRef(false);
@@ -540,8 +541,14 @@ export default function MapScreen() {
 
   const recenterUser = async () => {
     if (!locationGranted) {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return;
+      let { status } = await Location.getForegroundPermissionsAsync();
+      if (status === 'undetermined') {
+        ({ status } = await Location.requestForegroundPermissionsAsync());
+      }
+      if (status !== 'granted') {
+        setShowLocationDeniedModal(true);
+        return;
+      }
       setLocationGranted(true);
     }
     const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
@@ -879,6 +886,36 @@ export default function MapScreen() {
                 }}
               >
                 <Text style={styles.modalBtnConfirmText}>Support Herdy</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Location permission denied modal ── */}
+      <Modal visible={showLocationDeniedModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Ionicons name="location-outline" size={36} color="#3C8C7C" style={styles.coffeeIcon} />
+            <Text style={styles.modalTitle}>Location Access Needed</Text>
+            <Text style={styles.coffeeBody}>
+              It looks like you haven't allowed location sharing for Herdy. Please go to Settings and enable it to use this feature.
+            </Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.modalBtnCancel]}
+                onPress={() => setShowLocationDeniedModal(false)}
+              >
+                <Text style={styles.modalBtnCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.modalBtnConfirm]}
+                onPress={() => {
+                  setShowLocationDeniedModal(false);
+                  Linking.openSettings();
+                }}
+              >
+                <Text style={styles.modalBtnConfirmText}>Go to Settings</Text>
               </TouchableOpacity>
             </View>
           </View>
