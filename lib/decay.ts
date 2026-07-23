@@ -9,7 +9,7 @@ export const EMPTY_GEOJSON: GeoJSON.FeatureCollection = {
 /** Returns a weight between 0 and 1. Decays linearly to 0 over windowMinutes. */
 export function pinWeight(createdAt: Date, windowMinutes = DECAY_WINDOW_MINUTES): number {
   const ageMinutes = (Date.now() - createdAt.getTime()) / 60000;
-  return Math.max(0, 1 - ageMinutes / windowMinutes);
+  return Math.min(1, Math.max(0, 1 - ageMinutes / windowMinutes));
 }
 
 /** Converts active sightings to a Mapbox GeoJSON FeatureCollection with decay weights. */

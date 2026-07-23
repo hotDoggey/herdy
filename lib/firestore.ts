@@ -15,7 +15,7 @@ import {
 
 import { db } from './firebase';
 import { getDeviceId } from './deviceId';
-import { DECAY_WINDOW_MINUTES } from '@/constants/locations';
+import { MAX_FILTER_WINDOW_MINUTES } from '@/constants/locations';
 import { DEBUG } from '@/constants/debug';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -84,7 +84,7 @@ function localDateKey(timezone: string): string {
 /** Query for active sightings at a location within the decay window. */
 function activeSightingsQuery(locationId: string) {
   const cutoff = Timestamp.fromDate(
-    new Date(Date.now() - DECAY_WINDOW_MINUTES * 60 * 1000)
+    new Date(Date.now() - MAX_FILTER_WINDOW_MINUTES * 60 * 1000)
   );
   return query(
     sightingsRef,

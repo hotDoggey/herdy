@@ -126,3 +126,8 @@ export const ACTIVE_LOCATION = LOCATIONS.find((l) => l.status === 'active')!;
 
 // Pin weight decays to zero after this many minutes (4-hour window)
 export const DECAY_WINDOW_MINUTES = 240;
+
+// Widest "sighting window" filter option in the map filter sheet (8 hours).
+// The Firestore query must fetch at least this far back, or pins the user
+// widens the filter to see would already be excluded before they reach the client.
+export const MAX_FILTER_WINDOW_MINUTES = 480;
