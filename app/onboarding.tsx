@@ -8,9 +8,10 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { router } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { ONBOARDING_COMPLETE_KEY, logOnboardingEvent, setOnboardingCompleteState } from '@/lib/onboarding';
 
 const TEAL = '#3C8C7C';
 const HEADLINE_COLOR = '#1A4D3C';
@@ -72,8 +73,13 @@ export default function OnboardingScreen() {
   const imageHeight = Math.round(screenHeight * imageFraction);
 
   const completeOnboarding = useCallback(async () => {
-    await SecureStore.setItemAsync('herdy.onboardingComplete', 'true');
-    router.replace('/(tabs)');
+    await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
+    await logOnboardingEvent('onboarding completed, flag written');
+    // Flips the root layout's Stack.Protected guard, which removes this
+    // screen from the navigator and hands control to (tabs) automatically —
+    // no manual router.replace needed (and none of the earlier
+    // linking/initialRouteName ambiguity that caused this whole bug).
+    setOnboardingCompleteState(true);
   }, []);
 
   const handleNext = useCallback(() => {

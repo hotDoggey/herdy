@@ -8,7 +8,7 @@ import Mapbox, {
   SymbolLayer,
   UserLocation,
 } from '@rnmapbox/maps';
-import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from 'expo-router';
 
 const TRAIL_GEOJSON = require('../../assets/fanal-pr13.json') as GeoJSON.FeatureCollection;
@@ -278,10 +278,10 @@ export default function MapScreen() {
       await dequeuePin(docId);
       // Show support prompt on every other pin drop (even counts: 0, 2, 4, …)
       // Check before incrementing so count=0 fires on the very first pin.
-      const raw = await SecureStore.getItemAsync('herdy.pinCount');
+      const raw = await AsyncStorage.getItem('herdy.pinCount');
       const count = parseInt(raw ?? '0', 10) || 0;
-      await SecureStore.setItemAsync('herdy.pinCount', String(count + 1));
-      await SecureStore.setItemAsync('herdy.lastPinLocationId', selectedLocation.id);
+      await AsyncStorage.setItem('herdy.pinCount', String(count + 1));
+      await AsyncStorage.setItem('herdy.lastPinLocationId', selectedLocation.id);
       setLastPinLocationId(selectedLocation.id);
       if (count % 2 === 0) {
         setTimeout(() => setShowCoffeeModal(true), 1500);
@@ -352,7 +352,7 @@ export default function MapScreen() {
   useEffect(() => {
     filterWindowMinutesRef.current = filterWindowHours * 60;
     recomputeGeoJSON(displayPinsRef.current);
-    SecureStore.setItemAsync('herdy.filterWindowHours', String(filterWindowHours));
+    AsyncStorage.setItem('herdy.filterWindowHours', String(filterWindowHours));
   }, [filterWindowHours, recomputeGeoJSON]);
 
   // Recompute when herd size filter changes
@@ -458,22 +458,22 @@ export default function MapScreen() {
   // Re-read persisted settings whenever this screen gains focus (covers returning from Settings)
   useFocusEffect(
     useCallback(() => {
-      SecureStore.getItemAsync(HEATMAP_THEME_STORAGE_KEY).then((stored) => {
+      AsyncStorage.getItem(HEATMAP_THEME_STORAGE_KEY).then((stored) => {
         if (stored) setHeatmapThemeId(stored as HeatmapThemeId);
       });
-      SecureStore.getItemAsync('herdy.tempUnit').then((stored) => {
+      AsyncStorage.getItem('herdy.tempUnit').then((stored) => {
         if (stored) setUseFahrenheit(stored === 'F');
       });
-      SecureStore.getItemAsync('herdy.lastPinLocationId').then((stored) => {
+      AsyncStorage.getItem('herdy.lastPinLocationId').then((stored) => {
         if (stored) setLastPinLocationId(stored);
       });
-      SecureStore.getItemAsync('herdy.filterWindowHours').then((stored) => {
+      AsyncStorage.getItem('herdy.filterWindowHours').then((stored) => {
         const parsed = parseInt(stored ?? '', 10);
         if (parsed === 1 || parsed === 2 || parsed === 4 || parsed === 8) {
           setFilterWindowHours(parsed);
         }
       });
-      SecureStore.getItemAsync('herdy.selectedLocationId').then((stored) => {
+      AsyncStorage.getItem('herdy.selectedLocationId').then((stored) => {
         if (stored) {
           const loc = LOCATIONS.find((l) => l.id === stored);
           if (loc) {
@@ -530,7 +530,7 @@ export default function MapScreen() {
 
   const handleLocationSelect = (location: AppLocation) => {
     setSelectedLocation(location);
-    SecureStore.setItemAsync('herdy.selectedLocationId', location.id);
+    AsyncStorage.setItem('herdy.selectedLocationId', location.id);
     setShowTrail(true);
     cameraRef.current?.setCamera({
       centerCoordinate: [location.center.lng, location.center.lat],

@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as SecureStore from 'expo-secure-store';
+import * as Updates from 'expo-updates';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Linking, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -13,30 +14,74 @@ import {
 } from '@/constants/heatmapThemes';
 import { APP_VERSION } from '@/constants/variables';
 import { getSystemVar } from '@/lib/firestore';
+import {
+  ONBOARDING_COMPLETE_KEY,
+  getOnboardingLog,
+  resetOnboardingState,
+  type OnboardingLogEntry,
+} from '@/lib/onboarding';
+
+// Tap the version row this many times to reveal the onboarding debug section.
+const DEBUG_TAP_THRESHOLD = 5;
 
 export default function SettingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [selectedTheme, setSelectedTheme] = useState<HeatmapThemeId>(DEFAULT_THEME_ID);
   const [useFahrenheit, setUseFahrenheit] = useState(false);
+  const [versionTapCount, setVersionTapCount] = useState(0);
+  const [debugVisible, setDebugVisible] = useState(false);
+  const [onboardingFlagValue, setOnboardingFlagValue] = useState<string | null>(null);
+  const [onboardingLog, setOnboardingLog] = useState<OnboardingLogEntry[]>([]);
 
   useEffect(() => {
-    SecureStore.getItemAsync(HEATMAP_THEME_STORAGE_KEY).then((stored) => {
+    AsyncStorage.getItem(HEATMAP_THEME_STORAGE_KEY).then((stored) => {
       if (stored) setSelectedTheme(stored as HeatmapThemeId);
     });
-    SecureStore.getItemAsync('herdy.tempUnit').then((stored) => {
+    AsyncStorage.getItem('herdy.tempUnit').then((stored) => {
       if (stored) setUseFahrenheit(stored === 'F');
     });
   }, []);
 
   const selectTheme = async (id: HeatmapThemeId) => {
     setSelectedTheme(id);
-    await SecureStore.setItemAsync(HEATMAP_THEME_STORAGE_KEY, id);
+    await AsyncStorage.setItem(HEATMAP_THEME_STORAGE_KEY, id);
   };
 
   const selectTempUnit = async (fahrenheit: boolean) => {
     setUseFahrenheit(fahrenheit);
-    await SecureStore.setItemAsync('herdy.tempUnit', fahrenheit ? 'F' : 'C');
+    await AsyncStorage.setItem('herdy.tempUnit', fahrenheit ? 'F' : 'C');
+  };
+
+  const handleVersionTap = () => {
+    if (!__DEV__) return;
+    setVersionTapCount((prev) => prev + 1);
+  };
+
+  useEffect(() => {
+    if (__DEV__ && versionTapCount > 0 && versionTapCount % DEBUG_TAP_THRESHOLD === 0) {
+      setDebugVisible(true);
+      AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY).then(setOnboardingFlagValue);
+      getOnboardingLog().then(setOnboardingLog);
+    }
+  }, [versionTapCount]);
+
+  const replayOnboarding = () => {
+    Alert.alert(
+      'Replay onboarding?',
+      'This clears the onboarding-complete flag on this device and takes you to the walkthrough now.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Replay',
+          style: 'destructive',
+          onPress: async () => {
+            await resetOnboardingState();
+            router.replace('/onboarding');
+          },
+        },
+      ],
+    );
   };
 
   const rateApp = async () => {
@@ -61,6 +106,10 @@ export default function SettingsScreen() {
         <View style={styles.backBtn} />
       </View>
 
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
+        showsVerticalScrollIndicator={false}
+      >
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>Heatmap colour</Text>
 
@@ -108,15 +157,58 @@ export default function SettingsScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>About</Text>
-        <View style={styles.aboutRow}>
+        <TouchableOpacity style={styles.aboutRow} onPress={handleVersionTap} activeOpacity={0.5}>
           <Text style={styles.aboutLabel}>Version</Text>
           <Text style={styles.aboutValue}>{APP_VERSION}</Text>
-        </View>
+        </TouchableOpacity>
         <TouchableOpacity style={[styles.aboutRow, styles.aboutRowTop]} onPress={rateApp} activeOpacity={0.7}>
           <Text style={styles.aboutLabel}>Rate the app</Text>
           <Ionicons name="star-outline" size={18} color="#999" />
         </TouchableOpacity>
       </View>
+
+      {__DEV__ && debugVisible && (
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Onboarding debug</Text>
+
+          <View style={styles.aboutRow}>
+            <Text style={styles.aboutLabel}>Runtime version</Text>
+            <Text style={styles.aboutValue}>{Updates.runtimeVersion ?? 'n/a (dev)'}</Text>
+          </View>
+          <View style={[styles.aboutRow, styles.aboutRowTop]}>
+            <Text style={styles.aboutLabel}>Embedded launch</Text>
+            <Text style={styles.aboutValue}>{String(Updates.isEmbeddedLaunch)}</Text>
+          </View>
+          <View style={[styles.aboutRow, styles.aboutRowTop]}>
+            <Text style={styles.aboutLabel}>Update ID</Text>
+            <Text style={styles.aboutValue} numberOfLines={1}>{Updates.updateId ?? 'none'}</Text>
+          </View>
+          <View style={[styles.aboutRow, styles.aboutRowTop]}>
+            <Text style={styles.aboutLabel}>Stored flag value</Text>
+            <Text style={styles.aboutValue}>{onboardingFlagValue === null ? 'null' : onboardingFlagValue}</Text>
+          </View>
+
+          {onboardingLog.length > 0 && (
+            <View style={styles.debugLog}>
+              {onboardingLog.map((entry, i) => (
+                <Text key={i} style={styles.debugLogLine}>
+                  {entry.at} — {entry.event}
+                </Text>
+              ))}
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={[styles.aboutRow, styles.aboutRowTop, styles.replayRow]}
+            onPress={replayOnboarding}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.replayLabel}>Replay onboarding</Text>
+            <Ionicons name="refresh" size={18} color="#B00020" />
+          </TouchableOpacity>
+        </View>
+      )}
+      </ScrollView>
     </View>
   );
 }
@@ -215,5 +307,24 @@ const styles = StyleSheet.create({
   aboutValue: {
     fontSize: 16,
     color: '#999',
+  },
+  debugLog: {
+    marginTop: 8,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#FAFAFA',
+  },
+  debugLogLine: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 4,
+  },
+  replayRow: {
+    backgroundColor: '#FDECEC',
+  },
+  replayLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#B00020',
   },
 });
