@@ -69,18 +69,8 @@ Reverse-chronological list of active sightings with optional photo, herd size, a
 - Custom username colour or badge on feed posts
 - Profile card background: atmospheric scene art (Fanal fog, Richmond dawn, etc.)
 
-### 5. Monetisation — Ko-fi + In-App Purchase
-**Ko-fi webhook flow:**
-- User taps "Support on Ko-fi" → opens Ko-fi in browser
-- Ko-fi thank-you page includes a one-time deep link back: `herdy://unlock?token=<signed_jwt>`
-- A Firebase Cloud Function issues that signed JWT when Ko-fi fires its webhook (~50-line Cloud Function)
-- The app receives the deep link, sends the token to the Cloud Function, which writes `premium: true` to Firestore
-
-**Native IAP (one-time unlock):**
-- `expo-iap` (maintained successor to expo-in-app-purchases) — wraps StoreKit 2 on iOS and Google Play Billing on Android
-- Configure a Non-Consumable product in App Store Connect + Google Play Console ("Herdy Premium", e.g. £2.99)
-- Apple takes 30% (15% via Small Business Programme — you almost certainly qualify)
-- Both can coexist: Ko-fi → free, IAP → paid, same `premium: true` flag either way
+### 5. Monetisation
+TBD — deferred until post-MVP.
 
 ### 6. Gamification & Engagement
 - **Ranger Ranks:** Cub Ranger → Ranger → Senior Ranger → Head Ranger — unlocked by sighting count (5 / 25 / 100 / 500)
