@@ -37,7 +37,7 @@ import PinDropSheet from '@/components/PinDropSheet';
 import PinFlyAnimation from '@/components/PinFlyAnimation';
 import PinLingerMarker from '@/components/PinLingerMarker';
 import { ACTIVE_LOCATION, LOCATIONS, type AppLocation } from '@/constants/locations';
-import { CLUSTER_EXPANSION_RADIUS_M, NEARBY_RADIUS_M } from '@/constants/variables';
+import { CLUSTER_EXPANSION_RADIUS_M, NEARBY_RADIUS_M, SUPPORT_PROMPT_ENABLED } from '@/constants/variables';
 import {
   DEFAULT_THEME_ID,
   HEATMAP_THEMES,
@@ -283,7 +283,7 @@ export default function MapScreen() {
       await AsyncStorage.setItem('herdy.pinCount', String(count + 1));
       await AsyncStorage.setItem('herdy.lastPinLocationId', selectedLocation.id);
       setLastPinLocationId(selectedLocation.id);
-      if (count % 2 === 0) {
+      if (SUPPORT_PROMPT_ENABLED && count % 2 === 0) {
         setTimeout(() => setShowCoffeeModal(true), 1500);
       }
     } catch (err) {

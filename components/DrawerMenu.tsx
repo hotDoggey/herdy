@@ -4,6 +4,8 @@ import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { SUPPORT_DRAWER_ITEM_ENABLED } from '@/constants/variables';
+
 const DRAWER_WIDTH = 280;
 
 interface Props {
@@ -83,10 +85,12 @@ export default function DrawerMenu({ visible, onClose, onBuyCoffee }: Props) {
             <Text style={styles.itemText}>Get started</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.item} onPress={onBuyCoffee}>
-            <MaterialCommunityIcons name="coffee" size={22} color="#333" />
-            <Text style={styles.itemText}>Support Herdy</Text>
-          </TouchableOpacity>
+          {SUPPORT_DRAWER_ITEM_ENABLED && (
+            <TouchableOpacity style={styles.item} onPress={onBuyCoffee}>
+              <MaterialCommunityIcons name="coffee" size={22} color="#333" />
+              <Text style={styles.itemText}>Support Herdy</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </Animated.View>
     </View>

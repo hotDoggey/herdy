@@ -6,7 +6,9 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "firebase:rules": "firebase deploy --only firestore:rules --account biser951@gmail.com",
+    "firebase:indexes": "firebase deploy --only firestore:indexes --account biser951@gmail.com"
   },
   "dependencies": {
     "@expo/ngrok": "^4.1.3",
