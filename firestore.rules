@@ -7,6 +7,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /system_vars/{id} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     match /sightings/{id} {
       // Anyone can read active sightings — the heatmap is public
       allow read: if true;

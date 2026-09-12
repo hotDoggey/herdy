@@ -23,7 +23,10 @@ export default function DrawerMenu({ visible, onClose, onBuyCoffee }: Props) {
 
   const openWalkthrough = () => {
     onClose();
-    setTimeout(() => router.push('/onboarding'), 220);
+    // '/walkthrough', not '/onboarding' — the onboarding route is removed from
+    // the navigator once the completion flag is set, so it can't be pushed to.
+    // The walkthrough route shows the same slides and is always available.
+    setTimeout(() => router.push('/walkthrough'), 220);
   };
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;

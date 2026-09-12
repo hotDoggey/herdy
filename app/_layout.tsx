@@ -59,6 +59,13 @@ export default function RootLayout() {
         <Stack.Protected guard={onboardingComplete}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="settings" />
+          {/*
+            Walkthrough replay (drawer menu → "Get started"). Lives here, not
+            in the first-run group above, so it's reachable any time after
+            onboarding without clearing the completion flag. Still inside the
+            guard so it can't be deep-linked to during first run.
+          */}
+          <Stack.Screen name="walkthrough" options={{ gestureEnabled: true }} />
         </Stack.Protected>
       </Stack>
     </GestureHandlerRootView>

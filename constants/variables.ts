@@ -1,4 +1,4 @@
-export const APP_VERSION = '1.0.0';
+export const APP_VERSION = '1.0.1';
 
 // Radius (metres) from the tap point to seed the cluster search.
 // Increase if taps feel like they miss the herd cluster; decrease to tighten the hitbox.
