@@ -1,4 +1,4 @@
-export const APP_VERSION = '1.0.1';
+export const APP_VERSION = '1.0.2';
 
 // Two independent flags for the "Support Herdy" tip prompt, split so either
 // can be flipped on its own via `eas update` (JS-only, no rebuild) without

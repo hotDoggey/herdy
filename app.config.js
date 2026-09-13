@@ -5,7 +5,7 @@ module.exports = {
   name: IS_DEV ? 'Herdy (dev)' : 'Herdy',
   slug: 'herdy',
   scheme: 'herdy',
-  version: '1.0.1',
+  version: '1.0.2',
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'light',
