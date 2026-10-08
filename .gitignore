@@ -45,5 +45,8 @@ serviceAccountKey.json
 /ios
 /android
 
+# personal scratch notes
+xdocumentation.txt
+
 # Claude Code auto-memory
 .claude/

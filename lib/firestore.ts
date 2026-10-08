@@ -114,7 +114,8 @@ export function subscribeSightings(
         lng: pos.longitude,
         createdAt: (d.createdAt as Timestamp).toDate(),
         dateKey: d.dateKey as string,
-        herdSize: d.herdSize as string | undefined,
+        // Builds up to 1.0.2 wrote an en dash ('1–5'); normalise to the hyphen form
+        herdSize: (d.herdSize as string | undefined)?.replace('–', '-'),
         photoUrl: d.photoUrl as string | undefined,
         confirmed: (d.confirmed as number) ?? 0,
         isOutOfBounds: (d.isOutOfBounds as boolean) ?? false,

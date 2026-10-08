@@ -63,12 +63,6 @@ Only re-run `npx expo run:ios --device` when a new native module is added. If th
 
 ---
 
-## Deferred tasks (before shipping)
-
-- **Mapbox secret token** — currently hardcoded in `app.json` under `plugins[@rnmapbox/maps].RNMapboxMapsDownloadToken`. This is the build-time secret token (not the public token). Move it to an environment variable (`RNMAPBOX_MAPS_DOWNLOAD_TOKEN`) in `.env` and remove it from `app.json` before the first public commit or EAS cloud build. The `ios/` folder is gitignored so it hasn't leaked yet, but `app.json` is tracked.
-
----
-
 ## Target project structure
 
 The target structure (from the spec) is:

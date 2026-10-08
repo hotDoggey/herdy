@@ -23,19 +23,36 @@ service cloud.firestore {
           'locationId', 'position', 'createdAt',
           'deviceId', 'dateKey', 'confirmed', 'isOutOfBounds'
         ])
+        // Reject any field the app doesn't write — stops arbitrary payloads
+        && request.resource.data.keys().hasOnly([
+          'locationId', 'position', 'createdAt',
+          'deviceId', 'dateKey', 'confirmed', 'isOutOfBounds',
+          'deviceModel', 'herdSize'
+        ])
         // createdAt must be within the decay window (4h) of now — allows offline-queued
         // pins to be uploaded later while rejecting truly stale or future-dated data
         && request.resource.data.createdAt is timestamp
         && request.resource.data.createdAt >= request.time - duration.value(4, 'h')
         && request.resource.data.createdAt <= request.time + duration.value(2, 'm')
         // locationId must be a known valid location
-        && request.resource.data.locationId in ['fanal', 'home-test', 'richmond-park']
+        && request.resource.data.locationId in ['fanal', 'richmond-park']
         // deviceId must be a non-empty string (client UUID)
         && request.resource.data.deviceId is string
         && request.resource.data.deviceId.size() > 0
         && request.resource.data.deviceId.size() <= 64
         // position must be a valid GeoPoint
         && request.resource.data.position is latlng
+        // dateKey is "YYYY-MM-DD"
+        && request.resource.data.dateKey is string
+        && request.resource.data.dateKey.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.isOutOfBounds is bool
+        // Optional fields — short strings only
+        && (!('deviceModel' in request.resource.data)
+            || (request.resource.data.deviceModel is string
+                && request.resource.data.deviceModel.size() <= 100))
+        && (!('herdSize' in request.resource.data)
+            || (request.resource.data.herdSize is string
+                && request.resource.data.herdSize.size() <= 8))
         // confirmed counter must start at 0
         && request.resource.data.confirmed == 0;
 

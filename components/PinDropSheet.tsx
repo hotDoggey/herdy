@@ -9,7 +9,7 @@ import { type AppLocation } from '@/constants/locations';
 import { type Sighting } from '@/lib/firestore';
 import { haversineDistance, isPointInPolygon } from '@/lib/geo';
 
-const HERD_SIZES = ['1–5', '5–10', '10+'] as const;
+const HERD_SIZES = ['1-5', '5-10', '10+'] as const;
 type HerdSize = typeof HERD_SIZES[number];
 
 const DUPLICATE_RADIUS_M = 15;
@@ -45,7 +45,7 @@ export default function PinDropSheet({ visible, onClose, onSubmit, location, dis
   const sheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ['45%'], []);
 
-  const [herdSize, setHerdSize] = useState<HerdSize>('1–5');
+  const [herdSize, setHerdSize] = useState<HerdSize>('1-5');
   const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
@@ -53,7 +53,7 @@ export default function PinDropSheet({ visible, onClose, onSubmit, location, dis
 
   useEffect(() => {
     if (visible) {
-      setHerdSize('1–5');
+      setHerdSize('1-5');
       setGpsCoords(null);
       setGpsError(null);
       setLocationDenied(false);
